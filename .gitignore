@@ -1,0 +1,10 @@
+# Build artifacts
+*.o
+*.so
+*.so.*
+example
+*.a
+
+# Editor / OS
+*.swp
+.DS_Store
