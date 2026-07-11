@@ -36,9 +36,43 @@ Tested on Slay the Spire 2 (Steam).
 | **Provenance** | Hash-chain audit trail on every allocation |
 | **Semantic typing** | Arena `type_name` classifies every allocation by object type |
 
+### DSP Chain
+
+`mix_channel()` runs each channel's DSP graph before summing to the output
+buffer. Every DSP node carries its own `DSA_DSPState` (allocated/freed via
+`dsa_dsp_bind_process` / `dsa_dsp_free_state`), so effects are stateful and
+tick-stable.
+
+15 effects implemented in `src/mixer.c`:
+
+| Effect | Notes |
+|---|---|
+| lowpass / highpass / itlowpass | one-pole and IT-style resonant filters |
+| parameq | parametric EQ (center freq + bandwidth) |
+| distortion | waveshaper + output gain |
+| flanger | modulated delay (LFO on delay time) |
+| tremolo | amplitude LFO |
+| echo | feedback delay line |
+| delay | single-tap delay |
+| reverb / sfxreverb | algorithmic + SFX reverb |
+| compressor | peak compressor with threshold/ratio |
+| normalize | peak-normalize pass |
+| pitchshift | resampling-based pitch shift |
+| oscillator | generated waveform source |
+
+### 3D Spatialization
+
+Real 3D positioning in `mix_channel()`:
+
+- **Distance attenuation** — inverse-rolloff model (`min_distance` /
+  `max_distance` SoA fields; `DSA_Channel_Set3DMinMaxDistance` writes them).
+  Verified curve: near peak ≈ 0.25, 200 m ≈ 0.0025.
+- **Azimuth pan** — per-channel pan computed from listener `forward` / `up` /
+  `right` vectors and the channel's 3D position.
+
 ### Build
 
-Requirements: `gcc`, `make`, `libasound2-dev` (ALSA).
+Requirements: `gcc`, `make`, `libasound2-dev` (ALSA), `libmpg123-dev` (decoder).
 
 ```sh
 make           # builds libdsa.so + libfmod.so + libfmodstudio.so + example
