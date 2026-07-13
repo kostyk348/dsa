@@ -73,11 +73,12 @@ LINEAR_GRAD = "name"         — gradient reference
 
 ## Open Targets
 
-1. Binary analysis of `.ojd` format  ← **progress below**
+1. `.ojd` format — **SOLVED**: encrypted SQLite 3.49.1 (see §data.ojd).
+   Remaining: extract `logiovfs` `xRead` key to decrypt full file offline.
 2. Lua C API binding signatures (tolua++ or custom?)
 3. Network protocol documentation
-4. Field format reverse engineering  ← **progress below**
-5. Memory allocator analysis  ← **progress below (tracer data)**
+4. Field format reverse engineering (`.fld`, 80 files) — partial
+5. Memory allocator analysis (DataTrace tracer data captured)
 
 ---
 
@@ -130,11 +131,46 @@ component system under `components/*.lua` (description, level_cost, …).
   Recovering the exact struct needs disassembly of the load/parse routine called
   from there (reads the file, extracts header + tile/connection records).
 
-### `data.ojd` — encrypted / custom binary (open target)
-1.34 MB, first bytes `ed ce 8a 22`. **Not** zlib / raw-deflate / gzip
-(all fail header check). First 4 KB has **256/256 distinct byte values** →
-max entropy ⇒ stream-cipher / XOR encrypted or custom codec, not plaintext,
-not standard compression. Decryption key/scheme still unknown.
+### `data.ojd` — **ENCRYPTED SQLite 3 database** (SOLVED identification)
+- Stored in `strings.pak` as entry literally `data.ojd` (method 0, stored),
+  1,339,392 bytes = **327 pages × 4096 B**.
+- **SQLite 3.49.1** (`last written sqlite version = 3049000`), UTF-8,
+  page size 4096, first page offset 0. `file`/py-parser confirm it's a
+  valid SQLite 3 file ONCE decrypted.
+- Runtime LD_PRELOAD capture recovered page 1 (= file bytes 0..4096) as
+  plaintext `SQLite format 3\u0000` → proves the whole file is a SQLite DB
+  that is decrypted in memory at load time.
+- Cipher = **stream cipher** (CTR/RC4/ChaCha-like). Page-0 keystream known:
+  `ct ^ pt = be bf ca 0b 00 09 c9 13 a4 c6 cd a4 44 c2 19 86 …`.
+  No repeating-XOR period found up to 2048 B ⇒ key > 2 KB or real stream
+  cipher; offline decryption requires the key/algorithm from the binary.
+- **Decrypt location**: custom SQLite VFS `logiovfs`
+  (`sqlitevfs::SQLiteVfsImpl<LogIOFileShim>` / `logiovfs::SQLiteFileImpl`).
+  `{}str/data.ojd` (VA `0x1ff22a4`, loaded at `0x1434ae4`) → loader
+  `0x1426830` (called from `0x1434bf0`) parses the already-decrypted DB into
+  C++ structures. Decryption is applied by the VFS `xRead` before SQLite sees
+  pages (NOT a single buffer copy — pages are read/decrypted on demand).
+- **Partial schema recovered from page 1** (sqlite_master head): tables
+  `field_events`, `shop_items`, `shop_item_categories`, `shop_categories`,
+  `units`, `bgms`, `face_coordinates`, `titles`, `fonts`, `sqlite_sequence`,
+  plus a `sqlb_temp_table_1` (DB Browser artifact). Full schema spreads to
+  overflow pages (not all captured headless). Column lists saved in
+  `100OJ/extracted/data_ojd_schema_page0.sql`.
+
+#### Open target — getting the FULL DB
+Two viable paths (neither done yet):
+1. **Offline decryptor**: RE the `logiovfs` `xRead` to extract key/algorithm,
+   then decrypt the full 1,339,392-byte ciphertext we already have. Best —
+   no display needed.
+2. **Full runtime capture**: hook `xRead` (or run game to a state that reads
+   every page) → dump all 327 pages. Needs either completing the VFS-re hook
+   or running the game with a display (Xvfb not currently installed).
+
+Artifacts in `100OJ/extracted/`:
+- `data_ojd_full_ciphertext.bin` — full encrypted file (1,339,392 B)
+- `data_ojd_page0_plain.bin` — decrypted page 1 (schema root)
+- `data_ojd_schema_page0.sql` — recovered CREATE TABLEs
+Reusable capture tooling in `100OJ/tools/` (`ojd_preload*.c`).
 
 ### Memory lifecycle (DataTrace LD_PRELOAD tracer)
 Ran the binary headless; captured **14.3 M events / 2.26 GB** in ~120 s
