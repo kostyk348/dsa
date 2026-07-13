@@ -159,3 +159,49 @@ small scripting objects first, then a burst of large media decode buffers.
 > multi-GB `.pak` files, so a controlled short trace requires `timeout -s KILL`
 > + process-group kill; full runs produce multi-GB event logs.
 
+### Engine identity: **LUNA** (raylib fork)
+Runtime log reveals the engine is **LUNA** built on **raylib** ("Initializing raylib Juice版", "LUNA" module tags). So the engine is a custom **raylib** fork, not RmlUi for the core 3D/render (RmlUi may still back some UI). Display initializes fine headless on `:0` (1280×720). Online/launcher uses Steam API + EOS + Discord GameSDK.
+
+### `data.ojd` decryption — status: ENCRYPTED, key NOT yet recovered
+**Confirmed facts:**
+- `data.ojd` is stored **uncompressed** (zip method 0) inside `strings.pak` → the
+  1.34 MB file is the *encrypted* byte stream as-is (no inflate step for this entry).
+- The virtual path uses a `{}` prefix: binary references `{}str/data.ojd`; the
+  `{}` prefix marks an **encrypted** asset (sibling `version.ojtxt`/`credits.ojtxt`
+  in the same pak are plaintext and have no `{}`). Generic VFS read of a `{}` path
+  triggers decryption.
+- Linked compression codecs (strings): **miniz/deflate**, **bzip2**, **LZMA/XZ**
+  (`7zXZ`, `7ZwZwZwZw`). No obvious AES/RC4 S-box found in a quick scan.
+- The loader `0x1426830` → helper `0x14275f0` computes `std::hash` (`_ZSt11_Hash_bytes`)
+  over the loaded buffer and `bcmp`s it → **integrity hash check** before use.
+  Mismatch prints `Couldn't load data.ojd in strings.pak, the game will now
+  peacefully close.` and `exit()`s.
+- Actual decryption is dispatched **virtually** (vtable: `call *0x18(%r14)` at
+  `0x1426820`) through the VFS object → not trivially locatable by linear xref.
+
+**Key-recovery attempts (all failed → rules out simple schemes):**
+- zlib / gzip / raw-deflate / bzip2 / XZ / raw-LZMA: all fail to decompress.
+- First bytes `ed ce 8a 22 70 78 ea 1d …`; full-buffer entropy max (256/256 distinct
+  in first 4 KB) ⇒ encrypted/high-entropy, not plaintext, not standard compression.
+- Brute force XOR with key length 1, 2, 3 (ASCII/JSON/zlib-magic heuristics): **0 hits**.
+- Candidate string keys (`data.ojd`, `OrangeJuice`, `Luna`, `ojd`, `100OrangeJuice`, …):
+  all yield ~0.40 printable ratio, no valid stream.
+- Byte-wise `xor %cl,(mem)` loops exist in the binary but belong to string/number
+  parsers (`cmp $0x2d`/`-`, `cmp $0x2b`/`+`), not asset decryption. The many
+  `xor %reg,(base,index,8)` (8-byte) sites are hash/obfuscation, not a byte cipher.
+
+**Conclusion:** `data.ojd` is protected by a **keyed cipher** (stream/PRNG-XOR or
+block) whose key lives in the virtual VFS decrypt method. Recovering it requires
+either (a) locating that vtable-resolved method and extracting the key/algorithm
+from its disassembly, or (b) a runtime memory dump of the *decrypted* buffer
+(capture is hard: decrypt is in-place, and the game blocks on missing large `.pak`
+files before/around loading data.ojd in a headless setup).
+
+### Open sub-targets (refined)
+1. **data.ojd key**: find the VFS decrypt vtable method; extract key/algorithm.
+   Fallback: dump decrypted buffer at runtime (need game to reach data.ojd load —
+   supply all `.pak` and capture heap, or hook the virtual read method directly).
+2. **`.fld` parser**: confirm `0x29`=41 grid; map cell/connection struct across 80 fields.
+3. **Lua C bindings**: tolua++ vs custom; recover signatures (engine = LUNA/raylib,
+   Lua 5.4.6 still the scripting layer per earlier scripts).
+
