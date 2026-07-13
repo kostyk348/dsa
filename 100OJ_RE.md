@@ -206,11 +206,23 @@ from its disassembly, or (b) a runtime memory dump of the *decrypted* buffer
 (capture is hard: decrypt is in-place, and the game blocks on missing large `.pak`
 files before/around loading data.ojd in a headless setup).
 
+### KEY REALIZATION — both formats route through a **virtual VFS**
+- data.ojd loader: `call *0x18(%r14)` at `0x1426820` (vtable dispatch, method #3).
+- `.fld` filename builder: `call *0x10(%rsp)` at `0x1146a39` / `0x1146bc0` (method #2).
+⇒ Actual file read / parse / **decrypt** is in the concrete VFS class, reached
+virtually. Recovering either the `.fld` struct OR the `data.ojd` key requires
+resolving this VFS vtable (find the concrete VFS class: its vtable in
+`.data.rel.ro`, then the read/decrypt method bodies). **One vtable crack unlocks
+both formats.** Approach: locate the VFS singleton construction + vtable symbol in
+`.data.rel.ro`; disassemble the method at vtable offset 0x18 (decrypt) and 0x10
+(field read).
+
 ### Open sub-targets (refined)
-1. **data.ojd key**: find the VFS decrypt vtable method; extract key/algorithm.
-   Fallback: dump decrypted buffer at runtime (need game to reach data.ojd load —
-   supply all `.pak` and capture heap, or hook the virtual read method directly).
-2. **`.fld` parser**: confirm `0x29`=41 grid; map cell/connection struct across 80 fields.
-3. **Lua C bindings**: tolua++ vs custom; recover signatures (engine = LUNA/raylib,
+1. **VFS vtable crack** (highest value — unlocks both): find concrete VFS class
+   vtable in `.data.rel.ro`; disassemble read(0x10)/decrypt(0x18) methods.
+2. **data.ojd key**: extract from the decrypt method once vtable resolved.
+3. **`.fld` struct**: extract from the field-read method once vtable resolved.
+4. **Lua C bindings**: tolua++ vs custom; recover signatures (engine = LUNA/raylib,
    Lua 5.4.6 still the scripting layer per earlier scripts).
+5. Wire DataTrace eBPF backend as alternative to LD_PRELOAD; expand taint origins (T_FILE) + sinks (connect/write).
 
