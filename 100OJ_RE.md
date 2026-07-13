@@ -115,11 +115,20 @@ color_argb("#ffffffff")   -- returns color value
 Conclusion: card visuals = stacked Lua-driven layers (bg/fg) over a base rect;
 component system under `components/*.lua` (description, level_cost, …).
 
-### `.fld` field format (binary, NOT encrypted)
-`field_highway.fld` = 1800 bytes. Little-endian `uint32` fields. Pattern:
-leading 8 zero bytes, then repeated `29 00 00 00` (= 0x29 = **41**) at offsets
-8, 16, 32, 40. Hypothesis: 41 = grid dimension (or a tile/connection type id);
-header + per-cell/per-tile uint32 structs. Not encrypted (mostly small ints/zeros).
+### `.fld` field format (binary, NOT encrypted) — PARTIAL
+80 files, sizes 800–2048 B (clustered: 800×1, 968×16, 1040×2, 1152×9, 1352×14,
+1568×8, 1800×27, 2048×3). Little-endian integers. Observations:
+- Leading region is zeros, then `uint32` values appear. `field_practicefield_co.fld`
+  (800 B): header ~24 zero bytes, then int32 sequence `2, 72, 5, 65, 7, 65, 3, 129…`
+  (high 16 bits always 0 → values are int16/int32 in a list, not a dense tile grid).
+- `field_highway.fld` (1800 B): `0x29` (=**41**) recurs at offsets 8,16,32,40 as
+  `29 00 00 00` — likely a tile/connection type id (road) or a dimension, not a
+  full dense grid (1800 B ≠ 41×41 struct array). Not encrypted (small ints/zeros).
+- **Full struct not yet resolved** — values are ambiguous without the parser.
+- Parser location: filename `".fld"` is built in-place (immediates `2e 66 6c 64`
+  = `.fld`) at **0x11465a7** inside the field-loading routine (~0x1145e00+).
+  Recovering the exact struct needs disassembly of the load/parse routine called
+  from there (reads the file, extracts header + tile/connection records).
 
 ### `data.ojd` — encrypted / custom binary (open target)
 1.34 MB, first bytes `ed ce 8a 22`. **Not** zlib / raw-deflate / gzip
