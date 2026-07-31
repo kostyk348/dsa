@@ -122,4 +122,4 @@ C++ ABI (`_ZN4FMOD*`) symbols exported: **205 symbols** covering:
 
 ### License
 
-MIT
+Apache 2.0
