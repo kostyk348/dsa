@@ -1,4 +1,8 @@
-## DSA — Data-oriented Streaming Audio
+# DSA — Data-oriented Streaming Audio
+
+[![Release](https://img.shields.io/github/v/release/kostyk348/dsa?sort=semver&color=blue)](https://github.com/kostyk348/dsa/releases)
+[![License](https://img.shields.io/badge/license-Apache-2.0-green)](https://github.com/kostyk348/dsa/blob/main/LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/kostyk348/dsa?branch=main)](https://github.com/kostyk348/dsa/commits/main)
 
 Open-source FMOD replacement built on DSO patterns:
 arena allocators, SoA (Struct of Arrays) layout, tick-aware mix loop.
