@@ -1,11 +1,19 @@
+<div align="center">
+
+<img src="docs/banner.svg" alt="dsa banner" width="1000">
+
 # DSA — Data-oriented Streaming Audio
+
+### Open-source FMOD replacement built on DSO patterns: arena allocators, SoA (Struct of Arrays) layout, tick-aware mix loop.
 
 [![Release](https://img.shields.io/github/v/release/kostyk348/dsa?sort=semver&color=blue)](https://github.com/kostyk348/dsa/releases)
 [![License](https://img.shields.io/badge/license-Apache-2.0-green)](https://github.com/kostyk348/dsa/blob/main/LICENSE)
 [![Last commit](https://img.shields.io/github/last-commit/kostyk348/dsa?branch=main)](https://github.com/kostyk348/dsa/commits/main)
 
-Open-source FMOD replacement built on DSO patterns:
-arena allocators, SoA (Struct of Arrays) layout, tick-aware mix loop.
+</div>
+
+---
+
 
 Drop-in replacement for `libfmod.so` / `libfmodstudio.so` via `LD_PRELOAD`.
 Tested on Slay the Spire 2 (Steam).
